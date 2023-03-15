@@ -1,46 +1,60 @@
-const crypto = require('crypto');
 const { deterministicPartitionKey } = require("./dpk");
+const crypto = require("crypto");
 
-describe("deterministicPartitionKey", () => {
-  it("Returns the literal '0' when given no input", () => {
-    const trivialKey = deterministicPartitionKey();
-    expect(trivialKey).toBe("0");
+describe('deterministicPartitionKey', () => {
+  const event = {
+    key1: 'value1',
+    key2: 'value2'
+  };
+
+  it('should return a trivial partition key if no event is passed in', () => {
+    expect(deterministicPartitionKey()).toBe("0");
   });
 
-  test('returns trivial partition key when event is falsy', () => {
-    const result = deterministicPartitionKey(null);
-    expect(result).toBe("0");
-  });
-
-  test('returns partition key from event if it exists', () => {
+  it('should return a partition key based on the event if no partitionKey is present', () => {
     const event = {
-      partitionKey: "my-custom-partition-key"
+      key1: 'value1',
+      key2: 'value2'
     };
-    const result = deterministicPartitionKey(event);
-    expect(result).toBe("my-custom-partition-key");
+    const hash = crypto.createHash('sha3-512');
+    const expectedKey = hash.update(JSON.stringify(event)).digest('hex');
+  
+    expect(deterministicPartitionKey(event)).toBe(expectedKey);
   });
 
-  test('hashes event using sha3-512 when partition key is missing', () => {
-    const event = {
-      someData: "to-be-hashed"
+  it('should return the provided partition key if present', () => {
+    const providedKey = "my-partition-key";
+    const eventWithKey = {
+      ...event,
+      partitionKey: providedKey
     };
-    const hash = crypto.createHash("sha3-512").update(JSON.stringify(event)).digest("hex");
-    const result = deterministicPartitionKey(event);
-    expect(result).toBe(hash);
+
+    expect(deterministicPartitionKey(eventWithKey)).toBe(providedKey);
   });
 
-  test('hashes candidate again when it exceeds max length', () => {
+  it('should return a hashed partition key if the key is too long', () => {
     const longKey = "a".repeat(300);
-    const hash = crypto.createHash("sha3-512").update(longKey).digest("hex");
-    const result = deterministicPartitionKey({ someData: longKey });
-    expect(result).toBe(hash);
+    const expectedKey = crypto.createHash("sha3-512")
+      .update(longKey)
+      .digest("hex");
+
+    const eventWithLongKey = {
+      ...event,
+      partitionKey: longKey
+    };
+
+    expect(deterministicPartitionKey(eventWithLongKey)).toBe(expectedKey);
   });
 
-  test('converts non-string candidate to string', () => {
-    const event = {
-      partitionKey: 1234
+  it('should return a JSON stringified partition key if the candidate is not a string', () => {
+    const nonStringKey = 123;
+    const expectedKey = JSON.stringify(nonStringKey);
+
+    const eventWithNonStringKey = {
+      ...event,
+      partitionKey: nonStringKey
     };
-    const result = deterministicPartitionKey(event);
-    expect(typeof result).toBe("string");
+
+    expect(deterministicPartitionKey(eventWithNonStringKey)).toBe(expectedKey);
   });
 });
